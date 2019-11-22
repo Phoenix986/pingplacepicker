@@ -2,10 +2,13 @@ package com.rtchagas.pingplacepicker.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.location.Location
+import android.location.LocationManager
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
@@ -20,15 +23,15 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.gms.tasks.Task
 import com.google.android.libraries.places.api.model.Place
-import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.widget.Autocomplete
 import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
 import com.google.android.material.appbar.AppBarLayout
@@ -37,6 +40,8 @@ import com.google.maps.android.SphericalUtil
 import com.karumi.dexter.listener.PermissionDeniedResponse
 import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.single.BasePermissionListener
+import com.rtchagas.pingplacepicker.TimeSharingPositionBottomDialog
+import com.rtchagas.pingplacepicker.TimeSharingPositionBottomDialog.OnConfirmButtonClick
 import com.rtchagas.pingplacepicker.PingPlacePicker
 import com.rtchagas.pingplacepicker.R
 import com.rtchagas.pingplacepicker.helper.PermissionsHelper
@@ -49,7 +54,6 @@ import kotlinx.android.synthetic.main.activity_place_picker.*
 import org.jetbrains.anko.toast
 import org.koin.android.viewmodel.ext.android.viewModel
 import kotlin.math.abs
-
 
 class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
         OnMapReadyCallback,
@@ -68,6 +72,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
         private const val STATE_LOCATION = "state_location"
 
         private const val AUTOCOMPLETE_REQUEST_CODE = 1001
+        private const val REQUEST_CHECK_SETTINGS = 999
 
         private const val DIALOG_CONFIRM_PLACE_TAG = "dialog_place_confirm"
     }
@@ -150,6 +155,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_place_picker, menu)
+        menu.getItem(0).isVisible = resources.getBoolean(R.bool.show_card_search)
         return true
     }
 
@@ -204,7 +210,6 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
     }
 
     private fun bindPlaces(places: List<Place>) {
-
         // Bind to the recycler view
 
         if (placeAdapter == null) {
@@ -241,6 +246,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
 
             override fun onPermissionGranted(response: PermissionGrantedResponse?) {
                 isLocationPermissionGranted = true
+                //createLocationRequest()
                 initMap()
             }
         })
@@ -258,6 +264,12 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
     }
 
     private fun getDeviceLocation(animate: Boolean) {
+
+        val manager: LocationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if ( !manager.isProviderEnabled( LocationManager.GPS_PROVIDER ) ) {
+            createLocationRequest()
+            return
+        }
 
         // Get the best and most recent location of the device, which may be null in rare
         // cases when a location is not available.
@@ -277,13 +289,13 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                             else {
                                 // Location is not available. Give up...
                                 setDefaultLocation()
-                                Snackbar.make(coordinator,
+                                /*Snackbar.make(coordinator,
                                         R.string.picker_location_unavailable,
                                         Snackbar.LENGTH_INDEFINITE)
                                         .setAction(R.string.places_try_again) {
                                             getDeviceLocation(animate)
                                         }
-                                        .show()
+                                        .show()*/
                             }
                             return@addOnSuccessListener
                         }
@@ -357,7 +369,6 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 pbLoading.hide()
             }
         }
-
     }
 
     private fun handlePlacesLoaded(result: Resource<List<Place>>) {
@@ -387,7 +398,8 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 btnMyLocation.onclick { getDeviceLocation(true) },
                 btnRefreshLocation.onclick { refreshNearbyPlaces() },
                 cardSearch.onclick { requestPlacesSearch() },
-                mapContainer.onclick { selectThisPlace() }
+                currentLocationContainer.onclick { selectThisPlace() },
+                liveLocationContainer.onclick { selectLiveLocation() }
         )
 
         // Hide or show the refresh places button according to nearby search flag
@@ -417,8 +429,11 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
         })
 
         // Set the size of AppBarLayout to 68% of the total height
+        var percentageMap = 68
+        if(resources.getBoolean(R.bool.enable_nearby_search))
+            percentageMap = 100
         coordinator.doOnLayout {
-            val size: Int = (it.height * 68) / 100
+            val size: Int = (it.height * percentageMap) / 100
             appBarLayoutParams.height = size
         }
     }
@@ -483,11 +498,8 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 Place.Field.TYPES,
                 Place.Field.PHOTO_METADATAS)
 
-        val rectangularBounds = RectangularBounds.newInstance(getCurrentLatLngBounds())
-
         // Start the autocomplete intent.
-        val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, placeFields)
-                .setLocationBias(rectangularBounds)
+        val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.OVERLAY, placeFields)
                 .build(this)
 
         startActivityForResult(intent, AUTOCOMPLETE_REQUEST_CODE)
@@ -507,6 +519,28 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
         }
     }
 
+    private fun sendLiveLocationResult(timeSharing: Int) {
+        val data = Intent()
+        data.putExtra("timeSharing", timeSharing)
+        setResult(Activity.RESULT_OK, data)
+        finish()
+    }
+
+    private fun selectLiveLocation() {
+        val manager: LocationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if ( !manager.isProviderEnabled( LocationManager.GPS_PROVIDER ) ) {
+            createLocationRequest()
+            return
+        }
+
+        val dialogChooseTimeSharing = TimeSharingPositionBottomDialog(object : OnConfirmButtonClick {
+            override fun onConfirm(timeSharing: Int) {
+                sendLiveLocationResult(timeSharing)
+            }
+        })
+        dialogChooseTimeSharing.show(supportFragmentManager, "myBottomDialog")
+    }
+
     private fun selectThisPlace() {
         googleMap?.cameraPosition?.run {
             viewModel.getPlaceByLocation(target).observe(this@PlacePickerActivity,
@@ -522,6 +556,35 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
     private fun showConfirmPlacePopup(place: Place) {
         val fragment = PlaceConfirmDialogFragment.newInstance(place, this)
         fragment.show(supportFragmentManager, DIALOG_CONFIRM_PLACE_TAG)
+    }
+
+    private fun createLocationRequest() {
+        val locationRequest = LocationRequest.create()?.apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY ; LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
+
+        val builder = locationRequest?.let {
+            LocationSettingsRequest.Builder().addLocationRequest(it)
+        }
+
+        val client: SettingsClient = LocationServices.getSettingsClient(this)
+        val task: Task<LocationSettingsResponse> = client.checkLocationSettings(builder?.build())
+
+        task.addOnSuccessListener { locationSettingsResponse ->
+
+        }
+
+        task.addOnFailureListener { exception ->
+            if (exception is ResolvableApiException){
+                try {
+                    exception.startResolutionForResult(this@PlacePickerActivity, REQUEST_CHECK_SETTINGS)
+                } catch (sendEx: IntentSender.SendIntentException) {
+                    // Ignore the error.
+                }
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
