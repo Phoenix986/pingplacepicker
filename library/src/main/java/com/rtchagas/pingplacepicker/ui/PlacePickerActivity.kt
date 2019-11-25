@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.location.Location
 import android.location.LocationManager
 import android.os.Bundle
@@ -83,7 +84,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
 
     private var cameraPosition: CameraPosition? = null
 
-    private val defaultLocation = LatLng(37.4219999, -122.0862462)
+    private val defaultLocation = LatLng(0.0, 0.0)
 
     private var defaultZoom = -1f
 
@@ -150,6 +151,9 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 val place = Autocomplete.getPlaceFromIntent(this)
                 showConfirmPlacePopup(place)
             }
+        } else if ((requestCode == REQUEST_CHECK_SETTINGS) && (resultCode == Activity.RESULT_OK)) {
+            liveLocationContainer.setBackgroundColor(resources.getColor(android.R.color.white))
+            liveLocationContainer.isClickable = true
         }
     }
 
@@ -368,6 +372,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 toast(R.string.picker_load_this_place_error)
                 pbLoading.hide()
             }
+            else -> pbLoading.hide()
         }
     }
 
@@ -385,6 +390,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                 toast(R.string.picker_load_places_error)
                 pbLoading.hide()
             }
+            else -> pbLoading.hide()
         }
     }
 
@@ -554,8 +560,10 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
     }
 
     private fun showConfirmPlacePopup(place: Place) {
-        val fragment = PlaceConfirmDialogFragment.newInstance(place, this)
-        fragment.show(supportFragmentManager, DIALOG_CONFIRM_PLACE_TAG)
+        if(place.latLng != null && place.latLng != defaultLocation) {
+            val fragment = PlaceConfirmDialogFragment.newInstance(place, this)
+            fragment.show(supportFragmentManager, DIALOG_CONFIRM_PLACE_TAG)
+        }
     }
 
     private fun createLocationRequest() {
@@ -572,11 +580,9 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
         val client: SettingsClient = LocationServices.getSettingsClient(this)
         val task: Task<LocationSettingsResponse> = client.checkLocationSettings(builder?.build())
 
-        task.addOnSuccessListener { locationSettingsResponse ->
-
-        }
-
         task.addOnFailureListener { exception ->
+            liveLocationContainer.setBackgroundColor(resources.getColor(R.color.colorGray))
+            liveLocationContainer.isClickable = false
             if (exception is ResolvableApiException){
                 try {
                     exception.startResolutionForResult(this@PlacePickerActivity, REQUEST_CHECK_SETTINGS)

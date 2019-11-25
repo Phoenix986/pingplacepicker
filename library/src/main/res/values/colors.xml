@@ -8,4 +8,6 @@
     <color name="colorBackground">#EEEEEE</color>
     <color name="colorBackgroundLight">@color/material_white</color>
     <color name="colorMarkerInnerIcon">@color/material_white</color>
+
+    <color name="colorGray">#A9A9A9</color>
 </resources>

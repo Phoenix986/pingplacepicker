@@ -7,15 +7,15 @@
         - findCurrentPlace(): 0.030 USD per each (30.00 USD per 1000)
         - /nearbysearch:      0.040 USD per each (40.00 USD per 1000)
     -->
-    <bool name="enable_initial_nearby_search">false</bool>
-    <bool name="enable_nearby_search">false</bool>
+    <bool name="enable_initial_nearby_search">true</bool>
+    <bool name="enable_nearby_search">true</bool>
 
     <!-- 0.002 USD per each (2.00 USD per 1000) -->
-    <bool name="show_confirmation_photo">false</bool>
+    <bool name="show_confirmation_photo">true</bool>
 
     <!-- 0.007 USD per each (7.00 USD per 1000) -->
     <!-- Must enable Maps Static API in the key -->
-    <bool name="show_confirmation_map">false</bool>
+    <bool name="show_confirmation_map">true</bool>
 
     <!-- The zoom level that is initially applied to the map -->
     <integer name="default_zoom">17</integer>
