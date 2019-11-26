@@ -293,13 +293,6 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
                             else {
                                 // Location is not available. Give up...
                                 setDefaultLocation()
-                                /*Snackbar.make(coordinator,
-                                        R.string.picker_location_unavailable,
-                                        Snackbar.LENGTH_INDEFINITE)
-                                        .setAction(R.string.places_try_again) {
-                                            getDeviceLocation(animate)
-                                        }
-                                        .show()*/
                             }
                             return@addOnSuccessListener
                         }
@@ -436,7 +429,7 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
 
         // Set the size of AppBarLayout to 68% of the total height
         var percentageMap = 68
-        if(resources.getBoolean(R.bool.enable_nearby_search))
+        if(!PingPlacePicker.isNearbySearchEnabled)
             percentageMap = 100
         coordinator.doOnLayout {
             val size: Int = (it.height * percentageMap) / 100
@@ -470,14 +463,22 @@ class PlacePickerActivity : AppCompatActivity(), PingKoinComponent,
     }
 
     private fun loadNearbyPlaces() {
-        viewModel.getNearbyPlaces(lastKnownLocation ?: defaultLocation)
-                .observe(this, Observer { handlePlacesLoaded(it) })
+        if(PingPlacePicker.isNearbySearchEnabled) {
+            viewModel.getNearbyPlaces(lastKnownLocation ?: defaultLocation)
+                    .observe(this, Observer { handlePlacesLoaded(it) })
+        } else {
+            pbLoading.hide()
+        }
     }
 
     private fun refreshNearbyPlaces() {
-        googleMap?.cameraPosition?.run {
-            viewModel.getNearbyPlaces(target)
-                    .observe(this@PlacePickerActivity, Observer { handlePlacesLoaded(it) })
+        if(PingPlacePicker.isNearbySearchEnabled) {
+            googleMap?.cameraPosition?.run {
+                viewModel.getNearbyPlaces(target)
+                        .observe(this@PlacePickerActivity, Observer { handlePlacesLoaded(it) })
+            }
+        } else {
+            pbLoading.hide()
         }
     }
 
