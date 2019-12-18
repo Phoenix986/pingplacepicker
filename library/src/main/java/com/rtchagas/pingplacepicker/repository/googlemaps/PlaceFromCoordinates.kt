@@ -125,7 +125,10 @@ internal class PlaceFromCoordinates(private val latitude: Double, private val lo
     private fun replaceDelimiters(original: String): String {
         val parts = original.split(":")
         val idx = parts[2].indexOfAny(arrayOf(',','.').toCharArray())
-        val seconds = parts[2].subSequence(0, idx)
+        var seconds = 0;
+        if (idx >= 0) {
+            seconds = parts[2].subSequence(0, idx)
+        }
         return "${parts[0]}° ${parts[1]}' $seconds\""
     }
 }
