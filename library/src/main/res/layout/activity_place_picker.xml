@@ -179,10 +179,9 @@
 
             <androidx.appcompat.widget.Toolbar
                 android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
+                style="@style/PingToolbarStyle"
+                android:theme="@style/PingTheme.AppBarOverlay"
                 app:layout_collapseMode="pin"
-                app:popupTheme="@style/PingTheme.PopupOverlay"
                 app:title="@string/picker_title" />
 
             <com.google.android.material.card.MaterialCardView
